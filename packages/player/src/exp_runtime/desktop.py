@@ -51,6 +51,7 @@ from .pointer import ButtonPress, step_focus
 from .text_input import accept_name_character, validate_name
 from .ui_sound import UiSounds
 from .ui_assets import ImagePack, Rect
+from .vibration import buzz_wav
 from .vm import VMError
 
 
@@ -257,8 +258,9 @@ class Desktop:
         self.music_paused = False
         self.music_fade = None
         self.sound_serial = session.engine.sound_serial
+        self.vibration_serial = session.engine.vibration_serial
         self.audio = False
-        self.music_enabled = self.sound_enabled = True
+        self.music_enabled = self.sound_enabled = self.vibration_enabled = True
         self.choice_hints = False
         self.active = True
         self.menu_open = False
@@ -458,6 +460,10 @@ class Desktop:
         if engine.sound_serial != self.sound_serial:
             self.sound_serial = engine.sound_serial
             self._play_sounds(engine.sound_ids or [engine.sound_id])
+        if engine.vibration_serial != self.vibration_serial:
+            if engine.vibration_serial > self.vibration_serial:
+                self._buzz()
+            self.vibration_serial = engine.vibration_serial
         # `animationDidStop:` of the alert's slide on: sound 0x1f52. The strip is only on show in portrait, so there is
         # none while the panels are open.
         toast = engine.faceplace_toast
@@ -466,6 +472,18 @@ class Desktop:
             self._play_sounds([FACEPLACE_ALERT_SOUND])
 
     alert_sounded = None        # the alert whose sound has played
+    buzz_sound = None           # service 82's stand-in for the vibrator (vibration.py), built on first use
+
+    def _buzz(self):
+        if not (self.vibration_enabled and self.sound_enabled):
+            return
+        try:
+            if self.buzz_sound is None:
+                self.buzz_sound = pygame.mixer.Sound(file=BytesIO(buzz_wav()))
+            self.buzz_sound.set_volume(self.sound_volume)
+            self.buzz_sound.play()
+        except pygame.error as error:
+            logging.warning('Vibration buzz cannot be played: %s', error)
 
     def _play_sounds(self, assets):
         if not self.sound_enabled:
@@ -1334,7 +1352,8 @@ class Desktop:
             frame.centerx - size[0] // 2, frame.centery - size[1] // 2))
 
     def _pause_settings(self):
-        return dict(music=self.music_enabled, sound=self.sound_enabled, music_volume=self.music_volume,
+        return dict(vibration=self.vibration_enabled, music=self.music_enabled, sound=self.sound_enabled,
+                    music_volume=self.music_volume,
                     sound_volume=self.sound_volume, side_panels=self.panels_open, choice_hints=self.choice_hints,
                     skip_minigames=self.skip_minigames, skip_ad_intros=self.skip_ad_intros,
                     **({'hd_backdrop': self.hd_backdrop} if self.backdrop_switch() else {}))
@@ -1343,6 +1362,7 @@ class Desktop:
         if self.pause_hd.available() and not self.error:
             return self.pause_hd.layout(self._pause_settings())[0]
         return None if self.pause_renderer is None else self.pause_renderer.canvas.copy()
+
 
     def _draw_notice(self, frame, dim=True):
         """Whichever native menu-engine window is on top of `self.notice_stack` -- the "Exit Game?" confirmation
@@ -1455,6 +1475,8 @@ class Desktop:
                 self.skip_ad_intros = not self.skip_ad_intros
             elif command[1] == 'hd_backdrop':
                 self.hd_backdrop = not self.hd_backdrop
+            elif command[1] == 'vibration':
+                self.vibration_enabled = not self.vibration_enabled
             else:
                 self.sound_enabled = not self.sound_enabled
                 if self.sound_enabled:
@@ -1508,6 +1530,7 @@ class Desktop:
                 self.session = restored
                 self.error, self.music_token = None, None
                 self.sound_serial = restored.engine.sound_serial
+                self.vibration_serial = restored.engine.vibration_serial
                 self.menu_open = False
                 self._notice('Progress loaded')
             except (SaveError, OSError) as error:
@@ -1999,6 +2022,7 @@ class Desktop:
         self.session = restored
         self.error, self.music_token = None, None
         self.sound_serial = restored.engine.sound_serial
+        self.vibration_serial = restored.engine.vibration_serial
         self.menu_open = False
         self.side_panels.tree_follow = True
         self.location_pan = LocationPan()
