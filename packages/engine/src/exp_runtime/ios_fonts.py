@@ -138,7 +138,11 @@ def resolve_face(face):
 
 
 def _system_default(face):
-    if sys.platform == 'darwin':
+    if 'ANDROID_ARGUMENT' in os.environ:
+        style = face.style.replace(' ', '')
+        for name in (f'Roboto-{style}.ttf', 'Roboto-Regular.ttf', 'NotoSans-Regular.ttf', 'Roboto[wdth,wght].ttf'):
+            yield Path('/system/fonts') / name, 0
+    elif sys.platform == 'darwin':
         for filename in (('SFNSItalic.ttf', 'SFNS.ttf') if face.style == 'Italic' else
                          ('SFNS.ttf', 'SFNSDisplay.ttf')):
             yield Path('/System/Library/Fonts') / filename, 0
@@ -184,7 +188,8 @@ def render_font(library, name):
     if name in cache:
         return cache[name]
     color, stroke, source, index = (255, 255, 255, 255), 0, None, 0
-    if name in ('PajamaHip24', 'PajamaHip26', 'PajamaHip266', 'PajamaHipG26', 'PajamaHipY26', 'PajamaHipS26'):
+    if name in ('PajamaHip24', 'PajamaHip26', 'PajamaHip266', 'PajamaHipG26', 'PajamaHipY26', 'PajamaHipS26',
+                'PajamaHipS26Normal', 'PajamaHipS26Rose'):
         from .games import GAMES, game_id
         size = 24 if name == 'PajamaHip24' else 26
         face, bundled = GAMES[game_id(library)].NAME_FONT

@@ -876,15 +876,17 @@ class DialogueRenderer:
         x, y = (v * k for v in motion.origin(rect, portrait.mode))
         # Native alignment 5 is top-left, with no automatic wrapping. Preserve
         # the font's baked-in red lettering and white outline by using white RGB.
-        name = self.cod_notice_font() if self.game_id() == 'cod' else None
-        name = name or NOTICE_FONT
+        from .dialogue_notice import notice_font
+        name = notice_font(self.game_id(), engine.panel.theme)
+        if self.game_id() == 'cod':
+            name = self.cod_notice_font(engine.panel.theme) or name
         layout = self.text.layout(name, engine.notice, 2**31, NOTICE_STYLE)
         font = self.text.font(name)
         if getattr(font, 'source', None) is not None:
             self._draw_hd_notice(engine, layout, font, motion, x, y, name)
             return
         for index, glyph in enumerate(layout.glyphs):
-            image = self.text._glyph_image(NOTICE_FONT, glyph, motion.scale * k)
+            image = self.text._glyph_image(name, glyph, motion.scale * k)
             if motion.alpha < 255:
                 image = image.copy()
                 image.set_alpha(motion.alpha)
@@ -893,28 +895,35 @@ class DialogueRenderer:
 
     COD_NOTICE_FONT = 'COD_NOTICE'
 
-    def cod_notice_font(self):
-        """Cause of Death's letter-effect fonts (`SHSUIDialog::updateFonts` 00038b18, theme 1, which every CoD speaker
-        has): TrebuchetMS-Italic 20 in 0xfff0513c with a 1.5 stroke (+0x17328) over its black twin with a 6 stroke
-        (+0x18b48). IMG_0412 shows red italic letters edged in black inside a white outline: drawn here as the
-        white 6-point outline, the red fill and a black 1.5-point edge. None without vector fonts."""
+    def cod_notice_font(self, theme=1):
+        """CoD letter-effect face, with v0.6.1's theme-selected fill.
+
+        Keep the fork's Trebuchet 20, white 6-point outline and black
+        1.5-point edge. Cache each palette separately so theme changes
+        cannot reuse a previous speaker's red fill.
+        """
         library = getattr(self.resources, 'library', self.resources)
-        if getattr(self, '_cod_notice', None) is None:
+        from .dialogue_notice import notice_font
+        from .cod.profile import NAME_COLORS
+        role = notice_font('cod', theme)
+        name = self.COD_NOTICE_FONT + '_' + role
+        cache = self.__dict__.setdefault('_cod_notice_fonts', {})
+        if role not in cache:
             from .fonts import load_font as base_load_font
             from .vector_text import FaceSource, system_font_path, vector_font
             try:
                 path = system_font_path('trebuchet-italic', library)
                 if path is None or getattr(library, 'shs_hd_art', None) is None:
-                    self._cod_notice = False
+                    cache[role] = False
                 else:
                     base = base_load_font(library, 'TrebuchetMS_Italic16')
-                    self.text.register(self.COD_NOTICE_FONT, vector_font(
-                        base, FaceSource(path=path, label='cod-notice'), 20, fill=(240, 81, 60), stroke=6 / 20,
+                    self.text.register(name, vector_font(
+                        base, FaceSource(path=path, label='cod-notice'), 20, fill=NAME_COLORS[role], stroke=6 / 20,
                         embolden=1.5 / 20, embolden_color=(0, 0, 0)))
-                    self._cod_notice = True
+                    cache[role] = True
             except (ContentError, OSError, ValueError, pygame.error):
-                self._cod_notice = False
-        return self.COD_NOTICE_FONT if self._cod_notice else None
+                cache[role] = False
+        return name if cache[role] else None
 
     def _draw_hd_notice(self, engine, layout, font, motion, x, y, name=NOTICE_FONT):
         """HD's letter effect: `startLetterEffectAnimation` places each letter of the Trebuchet MS Italic fill font

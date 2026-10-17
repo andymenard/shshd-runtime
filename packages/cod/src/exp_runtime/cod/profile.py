@@ -50,7 +50,11 @@ NARRATION_COLORS = ((0, 0, 0), (180, 109, 26))
 BODY_MARKERS = ('`', {1: (254, 53, 53), 2: (41, 104, 221), 3: (0, 0, 0), -1: (0, 0, 0)})
 NAME_COLORS = {'PajamaHip24': (0, 0, 0), 'PajamaHip26': (139, 0, 0),
                'PajamaHip266': (180, 78, 78), 'PajamaHipG26': (139, 0, 0),
-               'PajamaHipY26': (139, 0, 0), 'PajamaHipS26': (254, 53, 0)}
+               'PajamaHipY26': (139, 0, 0), 'PajamaHipS26': (0, 0, 0),
+               'PajamaHipS26Normal': (240, 81, 60), 'PajamaHipS26Rose': (180, 78, 78)}
+# Upstream exp-runtime v0.6.1: updateFonts selects the letter-effect
+# palette by theme; default/gray notices use the neutral font.
+NOTICE_FONTS = {1: 'PajamaHipS26Normal', 2: 'PajamaHipS26Rose'}
 MUSIC_RANGE = range(8201, 8210)
 # CoD doSoundManagerTransition (00022b04), splashScreenFlewIn (00014c0c).
 MENU_MUSIC = 8209
